@@ -1,0 +1,93 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
+
+  config.vm.define "openldap_server" do |openldap_server_config|
+    openldap_server_config.vm.box = "CodingBee/centos7"
+
+  # this set's the machine's hostname.
+    openldap_server_config.vm.hostname = "openldapmaster.openldap-server.local"
+
+    openldap_server_config.vm.network "private_network", ip: "192.168.52.100"
+
+  openldap_server_config.vm.provider "virtualbox" do |vb|
+
+     vb.gui = false
+     # For common vm settings, e.g. setting ram and cpu we use:
+     vb.memory = "2048"
+     vb.cpus = 2
+     # However for more obscure virtualbox specific settings we fall back to virtualbox's "modifyvm" command:
+     vb.customize ["modifyvm", :id, "--clipboard", "bidirectional"]
+     
+     # name of machine that appears on the vb console and vb consoles title.
+     vb.name = "openldap_server"
+  end
+
+#  openldap_server_config.vm.provision :host_shell do |host_shell|
+ #   host_shell.inline = "cp -f ${HOME}/.gitconfig ./personal-data/.gitconfig"
+ # end
+
+#  openldap_server_config.vm.provision "shell" do |s|
+ #   s.inline = '[ -f /vagrant/personal-data/.gitconfig ] && runuser -l vagrant -c "cp -f /vagrant/personal-data/.gitconfig ~"'
+ # end
+
+  ## Copy the public+private keys from the host machine to the guest machine
+#  openldap_server_config.vm.provision :host_shell do |host_shell|
+#    host_shell.inline = "[ -f ${HOME}/.ssh/id_rsa ] && cp -f ${HOME}/.ssh/id_rsa* ./personal-data/"
+#  end
+  
+  openldap_server_config.vm.provision "file", source: "files/openldap", destination: "/tmp"
+ 
+  # this takes a vm snapshot (which we have called "basline") as the last step of "vagrant up".
+#  openldap_server_config.vm.provision :host_shell do |host_shell|
+#    host_shell.inline = 'vagrant snapshot take openldap_server baseline'
+#  end
+
+ end
+
+(1..1).each do |i|
+    config.vm.define "openldap-client0#{i}" do |openldap_client|
+      openldap_client.vm.box = "CodingBee/centos7"
+      openldap_client.vm.hostname = "openldap-client0#{i}.local"
+      openldap_client.vm.network "private_network", ip: "192.168.52.10#{i}"
+      openldap_client.vm.provider "virtualbox" do |vb|
+        vb.gui = true
+        vb.memory = "1500"
+        vb.cpus = 1
+        vb.customize ["modifyvm", :id, "--clipboard", "bidirectional"]
+        vb.name = "openldap-client0#{i}"
+      end
+
+      #### Comment out the following 2 lines to enable vanilla mode.
+      openldap_client.vm.provision "shell", path: "scripts/install-openldap_client.sh"
+      openldap_client.vm.provision "shell", path: "scripts/setup-automounting-of-home-directories.sh"
+
+
+      # this takes a vm snapshot (which we have called "basline") as the last step of "vagrant up".
+      openldap_client.vm.provision :host_shell do |host_shell|
+        host_shell.inline = "vagrant snapshot take openldap-client0#{i} baseline"
+      end
+
+    end
+  end
+
+  # this line relates to the vagrant-hosts plugin, https://github.com/oscar-stack/vagrant-hosts
+  # it adds entry to the /etc/hosts file.
+  # this block is placed outside the define blocks so that it gts applied to all VMs that are defined in this vagrantfile.
+  config.vm.provision :hosts do |provisioner|
+    provisioner.add_host '192.168.52.100', ['openldapmaster', 'openldapmaster.openldap-server.local']
+    provisioner.add_host '192.168.52.101', ['openldap-client01', 'openldap-client01.local']
+  end
+
+end
+
+
+
